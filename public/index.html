@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>果果密语</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="container">
+    <header class="topbar">
+      <h1>果果密语 <span class="moon">🕵️</span></h1>
+      <div class="topbar-btns">
+        <button id="showLoginBtn" type="button" class="link">登录</button>
+        <div id="userMenu" class="user-menu hidden">
+          <button id="userBtn" type="button" title="账号菜单"></button>
+          <div id="userDrop" class="user-drop hidden">
+            <button id="logoutBtn" type="button">退出登录</button>
+          </div>
+        </div>
+        <button id="fsBtn" type="button" title="全屏">⛶</button>
+      </div>
+    </header>
+
+    <!-- ================= 大厅 ================= -->
+    <section id="lobby" class="panel">
+      <div class="hero card">
+        <p class="hero-kicker">一封没有字的信</p>
+        <p class="hero-title">每个图案，都是被换过脸的字母</p>
+        <p class="hero-sub">系统随机生成一句英文，并把它重新"化妆"成图案。数一数每个图案出现的次数，像侦探一样把它译回来。</p>
+
+        <div class="opt-group">
+          <p class="opt-label">句子长短 <small>越短线索越少, 越难</small></p>
+          <div class="chips" id="lenChips">
+            <button type="button" data-len="long" class="chip active">长文 · 入门</button>
+            <button type="button" data-len="mid" class="chip">中篇 · 进阶</button>
+            <button type="button" data-len="short" class="chip">短句 · 烧脑</button>
+          </div>
+        </div>
+
+        <div class="opt-group">
+          <p class="opt-label">词汇难度 <small>生僻词更难, 顺便检验词汇量</small></p>
+          <div class="chips" id="vocabChips">
+            <button type="button" data-vocab="basic" class="chip active">日常词</button>
+            <button type="button" data-vocab="plus" class="chip">进阶词</button>
+            <button type="button" data-vocab="cet6" class="chip">六级词 🔥</button>
+          </div>
+        </div>
+
+        <div class="opt-group">
+          <p class="opt-label">密文样式</p>
+          <div class="chips" id="modeChips">
+            <button type="button" data-mode="symbol" class="chip active">🕺 图案</button>
+            <button type="button" data-mode="letter" class="chip">🔤 字母</button>
+          </div>
+        </div>
+
+        <button id="soloBtn" type="button" class="primary big">🔍 开始破译</button>
+        <div class="lobby-row">
+          <button id="roomCreateBtn" type="button" class="big">👥 和好友一起推</button>
+        </div>
+        <div class="join-row">
+          <input id="joinCode" class="code-input" inputmode="numeric" maxlength="4" placeholder="0000" />
+          <button id="joinBtn" type="button" class="primary">加入房间</button>
+        </div>
+      </div>
+
+      <button id="lobbyLoginBtn" type="button" class="wide-btn hidden">登录果果账号 <small>(记录/好友, 与果果麻将通用)</small></button>
+
+      <div id="loginBox" class="card hidden">
+        <p class="card-title">登录果果账号 <small>(与果果麻将通用)</small></p>
+        <div class="form-row">
+          <input id="loginUser" placeholder="账号" maxlength="16" autocomplete="username" />
+          <input id="loginPass" type="password" placeholder="密码" autocomplete="current-password" />
+        </div>
+        <div class="form-row">
+          <input id="regName" class="hidden" placeholder="昵称(注册时填)" maxlength="8" />
+        </div>
+        <div class="form-row btns">
+          <button id="loginBtn" type="button" class="primary">登录</button>
+          <button id="regBtn" type="button">注册</button>
+          <button id="skipBtn" type="button" class="link">先不登录, 直接玩</button>
+        </div>
+      </div>
+
+      <div id="friendsCard" class="card hidden">
+        <p class="card-title">好友</p>
+        <div class="form-row">
+          <input id="addFriendInput" placeholder="输入对方账号加好友" maxlength="16" />
+          <button id="addFriendBtn" type="button">加好友</button>
+        </div>
+        <div id="friendReq" class="friend-list"></div>
+        <div id="friendList" class="friend-list"></div>
+      </div>
+
+      <button id="recordBtn" type="button" class="wide-btn hidden">📖 我的破译记录</button>
+    </section>
+
+    <!-- ================= 对局 ================= -->
+    <section id="gamePanel" class="panel hidden">
+      <div class="game-head">
+        <div class="meta">
+          <span id="gLevel" class="tag">短句 · 入门</span>
+          <span id="gRoom" class="room-tag hidden">房间 <b id="gCode"></b></span>
+          <span class="meta-item" id="gTimer">⏱ 0:00</span>
+          <span class="meta-item" id="gHints">💡 0/3</span>
+        </div>
+        <div class="head-btns">
+          <button id="hintBtn" type="button">提示</button>
+          <button id="inviteBtn" type="button" class="hidden">邀请</button>
+          <button id="copyBtn" type="button" class="hidden">复制邀请</button>
+          <button id="newBtn" type="button">换一题</button>
+          <button id="leaveBtn" type="button">离开</button>
+        </div>
+      </div>
+
+      <div class="letter-wrap">
+        <div class="letter-pin"></div>
+        <div id="letter" class="letter"></div>
+        <div class="letter-foot">
+          <span>共 <b id="fLetters">0</b> 个字母 · <b id="fUnique">0</b> 种符号</span>
+          <span id="fProgress">尚未确认</span>
+        </div>
+      </div>
+
+      <div class="columns">
+        <div class="card codebook">
+          <p class="card-title">密码本 <small>按出现次数排序 · 点方块填字母</small></p>
+          <div id="codeList" class="code-list"></div>
+        </div>
+        <div class="card scratch">
+          <p class="card-title">草稿纸</p>
+          <textarea id="scratch" placeholder="写下你的推理: 哪个符号像 E? 哪个词像 THE?"></textarea>
+        </div>
+      </div>
+
+      <div id="chatCard" class="card chat hidden">
+        <p class="card-title">队友讨论</p>
+        <div id="chatLog" class="chat-log"></div>
+        <form id="chatForm">
+          <input id="chatInput" maxlength="120" placeholder="说点什么…" autocomplete="off" />
+          <button type="submit">发送</button>
+        </form>
+      </div>
+
+      <p id="msgErr"></p>
+    </section>
+  </main>
+
+  <!-- 选字母弹层 -->
+  <div id="picker" class="modal hidden">
+    <div class="picker-card">
+      <p class="picker-title">这个符号代表哪个字母？</p>
+      <div id="pickerPreview" class="picker-preview"></div>
+      <div id="pickerGrid" class="picker-grid"></div>
+      <div class="picker-foot">
+        <button id="pickerClear" type="button" class="link">擦掉</button>
+        <button id="pickerClose" type="button" class="link">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 破译成功 -->
+  <div id="winModal" class="modal hidden">
+    <div class="win-card">
+      <p class="win-kicker">CASE CLOSED</p>
+      <p class="win-title">密信破译成功 🎉</p>
+      <p id="winSentence" class="win-sentence"></p>
+      <p id="winMeta" class="win-meta"></p>
+      <div class="win-btns">
+        <button id="winAgain" type="button" class="primary">再来一封</button>
+        <button id="winBack" type="button">回到大厅</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 破译记录 -->
+  <div id="recordModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head"><span>📖 我的破译记录</span><button id="recordClose" type="button">✕</button></div>
+      <p id="recordSummary" class="record-summary">…</p>
+      <div id="recordList" class="record-list"></div>
+    </div>
+  </div>
+
+  <!-- 选好友邀请 -->
+  <div id="inviteModal" class="modal hidden">
+    <div class="modal-card">
+      <div class="modal-head"><span>邀请好友一起推</span><button id="inviteClose" type="button">✕</button></div>
+      <div id="inviteList" class="friend-list"></div>
+    </div>
+  </div>
+
+  <script src="glyphs.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>

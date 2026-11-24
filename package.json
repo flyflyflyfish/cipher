@@ -1,0 +1,15 @@
+{
+  "name": "guoguo-cipher",
+  "version": "1.0.0",
+  "description": "果果密语 - 替换密码破译小游戏 (图案/字母双模式, 单人+好友协作)",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node server/test.js"
+  },
+  "dependencies": {
+    "express": "^4.19.0",
+    "web-push": "^3.6.7",
+    "ws": "^8.17.0"
+  }
+}

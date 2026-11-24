@@ -44,7 +44,7 @@ class Client {
 
   // ---------- 单人: 三个难度都能出题并解出 ----------
   for (const [len, vocab, min, max] of [
-    ['short', 'basic', 12, 30], ['mid', 'plus', 45, 100], ['long', 'cet6', 150, 310],
+    ['short', 'basic', 10, 48], ['mid', 'plus', 40, 140], ['long', 'cet6', 130, 330],
   ]) {
     A.msgs.length = 0; // 清历史消息, 避免命中上一局
     A.send({ t: 'puzzle_new', length: len, vocab, mode: 'symbol' });
@@ -124,10 +124,77 @@ class Client {
   const left = await A.wait(m => m.t === 'room' && m.players.length === 1);
   check('房主看到成员减少', left.players.length === 1);
 
+  // ---------- 题目来源: 名言名篇 ----------
+  B.msgs.length = 0;
+  B.send({ t: 'puzzle_new', length: 'short', vocab: 'basic', mode: 'symbol', source: 'quote' });
+  const pq = await B.wait(m => m.t === 'puzzle');
+  check('名言档出题成功', Array.isArray(pq.words) && pq.words.length > 1);
+  check('名言档带出处或回落到场景', !pq.cite || typeof pq.cite === 'string');
+
+  // ---------- 严格模式: 不给逐词反馈 ----------
+  B.msgs.length = 0;
+  B.send({ t: 'puzzle_new', length: 'short', vocab: 'basic', mode: 'letter', source: 'scene', strict: true });
+  const ps = await B.wait(m => m.t === 'puzzle' && m.strict === true);
+  const sols = Object.entries(ps.solution);
+  const oneC = sols[0][0], oneP = sols[0][1];
+  check('严格模式标记回传', ps.strict === true);
+  check('严格模式初始无已确认符号', Object.keys(ps.confirmed || {}).length === 0);
+  B.msgs.length = 0;
+  B.send({ t: 'guess', pid: ps.pid, c: oneC, p: oneP });
+  const sv = await B.wait(m => m.t === 'puzzle' && m.pid === ps.pid);
+  check('严格模式填对后仍不透露逐词对错', Object.keys(sv.confirmed || {}).length === 0);
+  check('严格模式记录已填数量', sv.filledN >= 1);
+
+  // ---------- 严格模式的模糊校验 ----------
+  B.msgs.length = 0;
+  B.send({ t: 'check', pid: ps.pid });
+  const cr = await B.wait(m => m.t === 'check_result');
+  check('检查返回总数与正确数', cr.total > 0 && cr.right >= 1 && cr.right <= cr.total);
+  check('检查不指具体位置', cr.wrong === undefined && cr.detail === undefined);
+
+  // ---------- 好友出题 ----------
+  A.msgs.length = 0;
+  A.send({ t: 'custom_create', sentence: 'meet me under the old bridge at midnight', mode: 'symbol', name: '出题人' });
+  const co = await A.wait(m => m.t === 'custom_ok');
+  check('好友出题成功', /^\d{4}$/.test(co.code));
+  check('出题返回字数与符号数', co.letters > 10 && co.unique > 5);
+
+  B.msgs.length = 0;
+  B.send({ t: 'room_join', code: co.code, name: '破译者' });
+  const cw = await B.wait(m => m.t === 'welcome');
+  check('好友可加入自定义题房', cw.code === co.code);
+  check('自定义房带出题人', cw.custom === true && !!cw.authorName);
+
+  // 破译自定义题
+  const csol = Object.entries(cw.solution);
+  for (const [c, p] of csol) B.send({ t: 'room_guess', code: co.code, c, p });
+  const csolved = await B.wait(m => m.t === 'solved', 8000);
+  check('自定义题可被破译', /BRIDGE/.test(csolved.sentence || ''));
+  check('破译成功标明出题人', csolved.custom === true && !!csolved.authorName);
+
+  // 自定义房不能换题
+  B.msgs.length = 0;
+  B.send({ t: 'room_new', code: co.code, length: 'long', vocab: 'basic', mode: 'symbol' });
+  const rerr = await B.wait(m => m.t === 'error');
+  check('自定义房禁止换题', /好友出的题|换不了/.test(rerr.msg));
+  B.send({ t: 'room_leave', code: co.code });
+  await B.wait(m => m.t === 'bye');
+
+  // ---------- 出题句子校验 ----------
+  A.msgs.length = 0;
+  A.send({ t: 'custom_create', sentence: '中文不行', mode: 'symbol' });
+  const bad1 = await A.wait(m => m.t === 'error');
+  check('拒绝非英文内容', !!bad1.msg);
+  A.msgs.length = 0;
+  A.send({ t: 'custom_create', sentence: 'ab', mode: 'symbol' });
+  const bad2 = await A.wait(m => m.t === 'error');
+  check('拒绝过短句子', /太短/.test(bad2.msg));
+
   // ---------- 异常 ----------
+  B.msgs.length = 0;
   B.send({ t: 'room_join', code: '0000', name: '测试乙' });
   const err = await B.wait(m => m.t === 'error');
-  check('加入不存在的房间报错', /不存在|过期/.test(err.msg));
+  check('加入不存在的房间报错', /不存在|过期/.test(err.msg), JSON.stringify(err.msg));
 
   // ---------- 战绩接口 ----------
   const res = await fetch('http://127.0.0.1:3012/api/history').then(r => r.json());

@@ -30,7 +30,7 @@
         <p class="hero-sub">系统随机生成一句英文，并把它重新"化妆"成图案。数一数每个图案出现的次数，像侦探一样把它译回来。</p>
 
         <div class="opt-group">
-          <p class="opt-label">句子长短 <small>越短线索越少, 越难</small></p>
+          <p class="opt-label">篇幅 <small>越短线索越少, 越难</small></p>
           <div class="chips" id="lenChips">
             <button type="button" data-len="long" class="chip active">长文 · 入门</button>
             <button type="button" data-len="mid" class="chip">中篇 · 进阶</button>
@@ -48,6 +48,15 @@
         </div>
 
         <div class="opt-group">
+          <p class="opt-label">题目来源</p>
+          <div class="chips" id="srcChips">
+            <button type="button" data-src="scene" class="chip active">🎲 随机小故事</button>
+            <button type="button" data-src="quote" class="chip">📜 名言名篇</button>
+            <button type="button" data-src="custom" class="chip">✍️ 我来出题</button>
+          </div>
+        </div>
+
+        <div class="opt-group">
           <p class="opt-label">密文样式</p>
           <div class="chips" id="modeChips">
             <button type="button" data-mode="symbol" class="chip active">🕺 图案</button>
@@ -55,10 +64,28 @@
           </div>
         </div>
 
+        <div class="opt-group">
+          <p class="opt-label">判定方式 <small>严格模式不给逐词提示, 只告诉你对了几处</small></p>
+          <div class="chips" id="judgeChips">
+            <button type="button" data-strict="0" class="chip active">宽松 · 逐词变绿</button>
+            <button type="button" data-strict="1" class="chip">严格 · 只判结果</button>
+          </div>
+        </div>
+
+        <div id="customBox" class="custom-box hidden">
+          <p class="custom-hint">写一句英文（也可以是想对朋友说的话），系统会把它加密成密信。<b>对方破译完才能看到原文</b>。</p>
+          <textarea id="customText" maxlength="300" rows="3" placeholder="例如: I HAVE HIDDEN THE KEY UNDER THE OLD BRIDGE."></textarea>
+          <div class="custom-foot">
+            <span class="custom-count"><b id="customCount">0</b> / 300</span>
+            <button id="customCreateBtn" type="button" class="primary">封好这封信 ✉️</button>
+          </div>
+        </div>
+
         <button id="soloBtn" type="button" class="primary big">🔍 开始破译</button>
         <div class="lobby-row">
           <button id="roomCreateBtn" type="button" class="big">👥 和好友一起推</button>
         </div>
+        <button id="tutorialBtn" type="button" class="wide-btn ghost">🎓 第一次玩? 花两分钟学会怎么推</button>
         <div class="join-row">
           <input id="joinCode" class="code-input" inputmode="numeric" maxlength="4" placeholder="0000" />
           <button id="joinBtn" type="button" class="primary">加入房间</button>
@@ -98,14 +125,35 @@
 
     <!-- ================= 对局 ================= -->
     <section id="gamePanel" class="panel hidden">
+      <div id="tutBar" class="tut-bar hidden">
+        <div class="tut-head">
+          <span id="tutStep" class="tut-step">第 1 步 / 共 6 步</span>
+          <button id="tutExit" type="button" class="tut-exit">退出教学</button>
+        </div>
+        <p id="tutText" class="tut-text"></p>
+        <div class="tut-btns">
+          <button id="tutNext" type="button" class="primary">下一步</button>
+        </div>
+      </div>
+
+      <div id="caseCard" class="case-card hidden">
+        <div class="case-head">
+          <span class="case-kicker">案 情 简 报</span>
+          <button id="caseToggle" type="button" class="case-toggle">收起</button>
+        </div>
+        <p id="caseBrief" class="case-brief"></p>
+      </div>
+
       <div class="game-head">
         <div class="meta">
           <span id="gLevel" class="tag">短句 · 入门</span>
+          <span id="gStrict" class="tag strict hidden">严格</span>
           <span id="gRoom" class="room-tag hidden">房间 <b id="gCode"></b></span>
           <span class="meta-item" id="gTimer">⏱ 0:00</span>
           <span class="meta-item" id="gHints">💡 0/3</span>
         </div>
         <div class="head-btns">
+          <button id="checkBtn" type="button" class="hidden">检查</button>
           <button id="hintBtn" type="button">提示</button>
           <button id="inviteBtn" type="button" class="hidden">邀请</button>
           <button id="copyBtn" type="button" class="hidden">复制邀请</button>
@@ -166,10 +214,27 @@
       <p class="win-kicker">CASE CLOSED</p>
       <p class="win-title">密信破译成功 🎉</p>
       <p id="winSentence" class="win-sentence"></p>
+      <p id="winTruth" class="win-truth hidden"></p>
+      <p id="winCite" class="win-cite hidden"></p>
       <p id="winMeta" class="win-meta"></p>
       <div class="win-btns">
         <button id="winAgain" type="button" class="primary">再来一封</button>
         <button id="winBack" type="button">回到大厅</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 出题成功: 分享密信 -->
+  <div id="shareModal" class="modal hidden">
+    <div class="win-card">
+      <p class="win-kicker">SEALED</p>
+      <p class="win-title">密信已封好 ✉️</p>
+      <p class="share-code">房间号 <b id="shareCode">0000</b></p>
+      <p id="shareMeta" class="win-meta"></p>
+      <p class="share-tip">把房间号或链接发给朋友，他破译完才能看到你写了什么。</p>
+      <div class="win-btns">
+        <button id="shareCopy" type="button" class="primary">复制邀请链接</button>
+        <button id="shareClose" type="button">完成</button>
       </div>
     </div>
   </div>

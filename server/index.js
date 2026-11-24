@@ -134,21 +134,28 @@ function send(ws, obj) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o
 const isLetter = ch => /^[A-Z]$/.test(ch);
 
 // 拼图视图 (不含谜底): 每个词的正确性 / 已确认字母 / 频次
-function puzzleView(p, guesses) {
+// strict=true 时不透露任何逐词/逐字母的对错 —— 只由玩家自己判断,
+// 想验证就用 check (只告诉他"对了几种符号", 不指位置)。全填对则直接判定成功。
+function puzzleView(p, guesses, strict) {
   const g = guesses || {};
   const words = p.tokens.map(w => {
     const letters = w.filter(isLetter);
     const filled = letters.length > 0 && letters.every(c => g[c]);
     const ok = filled && letters.every(c => g[c] === p.solution[c]);
-    return { chars: w.map(c => ({ c, g: isLetter(c) ? (g[c] || null) : null })), ok };
+    return { chars: w.map(c => ({ c, g: isLetter(c) ? (g[c] || null) : null })), ok: strict ? false : ok };
   });
   const confirmed = {};
-  words.forEach(w => { if (w.ok) w.chars.forEach(x => { if (x.g) confirmed[x.c] = true; }); });
+  if (!strict) words.forEach(w => { if (w.ok) w.chars.forEach(x => { if (x.g) confirmed[x.c] = true; }); });
   const solved = p.uniqueCipher.every(c => g[c] === p.solution[c]);
+  const filledN = p.uniqueCipher.filter(c => g[c]).length;
   return {
-    words, confirmed, solved,
+    words, confirmed, solved, strict: !!strict, filledN,
     freq: p.uniqueCipher.map(c => ({ c, n: p.freq[c] })),
     letters: p.letters,
+    source: p.origin || 'scene', cite: p.cite || null,
+    brief: p.brief || null,
+    // 结案报告只在破译成功后才给 —— 它本身就是谜底的一部分
+    truth: solved ? (p.truth || null) : null,
   };
 }
 
@@ -159,7 +166,7 @@ function mySoloView(ws) {
     t: 'puzzle', pid: s.puzzle.id, length: s.puzzle.length, vocab: s.puzzle.vocab, mode: s.mode,
     startedAt: s.startedAt, hints: s.hints, guesses: s.guesses,
     solution: TEST_MODE ? s.puzzle.solution : undefined,
-  }, puzzleView(s.puzzle, s.guesses));
+  }, puzzleView(s.puzzle, s.guesses, s.strict));
 }
 
 // ================= 协作房间 =================
@@ -175,11 +182,12 @@ function newCode() {
 function roomView(room) {
   return Object.assign({
     t: 'room', code: room.code, length: room.length, vocab: room.vocab, mode: room.mode,
+    custom: !!room.custom, author: room.author || null, authorName: room.authorName || null,
     players: room.players.map(p => ({ name: p.name, online: !!p.ws, user: p.user || null })),
     startedAt: room.startedAt, hints: room.hints, guesses: room.guesses,
     solved: room.solved, sentence: room.solved ? room.puzzle.sentence : null,
     solution: TEST_MODE ? room.puzzle.solution : undefined,
-  }, puzzleView(room.puzzle, room.guesses));
+  }, puzzleView(room.puzzle, room.guesses, room.strict));
 }
 
 function broadcast(room, obj) { for (const p of room.players) if (p.ws) send(p.ws, obj); }
@@ -197,14 +205,15 @@ function scheduleRoomCleanup(room) {
   }, ROOM_TTL);
 }
 
-function newRoom(length, vocab, mode) {
+function newRoom(length, vocab, mode, strict, source) {
   const code = newCode();
   const room = {
     code,
     length: P.LENGTHS[length] ? length : 'mid',
     vocab: P.VOCABS[vocab] ? vocab : 'basic',
     mode: mode === 'letter' ? 'letter' : 'symbol',
-    puzzle: P.makePuzzle({ length, vocab }), guesses: {}, hints: 0, solved: false,
+    strict: !!strict,
+    puzzle: P.makePuzzle({ length, vocab, source, strict }), guesses: {}, hints: 0, solved: false,
     players: [], startedAt: Date.now(), timer: null,
   };
   rooms.set(code, room);
@@ -214,12 +223,12 @@ function newRoom(length, vocab, mode) {
 function joinRoom(room, ws, name, user, resumedSid) {
   if (room.players.length >= 6 && !resumedSid) { send(ws, { t: 'error', msg: '房间已满(6人)' }); return false; }
   let idx, sid;
+  clearTimeout(room.timer); // 有人进来了, 取消空房清理
   if (resumedSid) {
     idx = room.players.findIndex(p => p.sid === resumedSid);
     if (idx < 0) { send(ws, { t: 'resume_fail', sid: resumedSid }); return false; }
     sid = resumedSid;
     room.players[idx].ws = ws; room.players[idx].online = true;
-    clearTimeout(room.timer);
   } else {
     sid = crypto.randomBytes(8).toString('hex');
     idx = room.players.length;
@@ -242,8 +251,13 @@ function leaveRoom(room, ws) {
   if (p.sid) { sidIndex.delete(p.sid); ws._sids && ws._sids.delete(p.sid); }
   send(ws, { t: 'bye', code: room.code });
   if (!room.players.length) {
-    rooms.delete(room.code);
-    clearTimeout(room.timer);
+    if (room.custom) {
+      // 好友出的题: 人走了题还留着, 2 小时后回收
+      scheduleRoomCleanup(room);
+    } else {
+      rooms.delete(room.code);
+      clearTimeout(room.timer);
+    }
   } else {
     if (!room.players.some(x => x.ws)) scheduleRoomCleanup(room);
     syncRoom(room);
@@ -257,13 +271,23 @@ function finishRoom(room) {
   addHistory({
     kind: 'cipher', code: room.code,
     players: room.players.map(p => p.name),
-    sentence: room.puzzle.sentence,
+    sentence: room.puzzle.sentence, cite: room.puzzle.cite || null,
+    custom: !!room.custom, author: room.authorName || null,
     length: room.length, vocab: room.vocab, mode: room.mode, hints: room.hints, seconds,
   });
   broadcast(room, {
-    t: 'solved', code: room.code, sentence: room.puzzle.sentence,
+    t: 'solved', code: room.code, sentence: room.puzzle.sentence, cite: room.puzzle.cite || null,
+    origin: room.puzzle.origin, custom: !!room.custom, authorName: room.authorName || null,
     seconds, hints: room.hints, players: room.players.map(p => p.name),
   });
+  // 好友出的题: 破译成功后通知出题者 (若他本人就在房里则不重复通知)
+  if (room.custom && room.author && !room.players.some(p => p.user === room.author)) {
+    const set = onlineUsers.get(room.author);
+    const by = room.players.map(p => p.name).join('、') || '有人';
+    if (set) {
+      for (const w of set) send(w, { t: 'custom_solved', code: room.code, sentence: room.puzzle.sentence, by });
+    }
+  }
   console.log(`房间 ${room.code}: 破译成功 (${seconds}s, 提示${room.hints}次)`);
 }
 
@@ -369,7 +393,11 @@ function handle(ws, msg) {
       const length = P.LENGTHS[msg.length] ? msg.length : 'mid';
       const vocab = P.VOCABS[msg.vocab] ? msg.vocab : 'basic';
       const mode = msg.mode === 'letter' ? 'letter' : 'symbol';
-      ws._solo = { puzzle: P.makePuzzle({ length, vocab }), mode, guesses: {}, hints: 0, startedAt: Date.now() };
+      const source = msg.source === 'quote' ? 'quote' : 'scene';
+      ws._solo = {
+        puzzle: P.makePuzzle({ length, vocab, source }),
+        mode, strict: !!msg.strict, guesses: {}, hints: 0, startedAt: Date.now(),
+      };
       send(ws, mySoloView(ws));
       break;
     }
@@ -386,11 +414,25 @@ function handle(ws, msg) {
         const seconds = Math.round((Date.now() - s.startedAt) / 1000);
         addHistory({
           kind: 'cipher', players: [ws._user ? accounts().users[ws._user].name : '访客'],
-          sentence: s.puzzle.sentence, length: s.puzzle.length, vocab: s.puzzle.vocab, mode: s.mode,
+          sentence: s.puzzle.sentence, cite: s.puzzle.cite || null,
+          length: s.puzzle.length, vocab: s.puzzle.vocab, mode: s.mode,
           hints: s.hints, seconds,
         });
-        send(ws, { t: 'solved', pid: s.puzzle.id, sentence: s.puzzle.sentence, seconds, hints: s.hints });
+        send(ws, {
+          t: 'solved', pid: s.puzzle.id, sentence: s.puzzle.sentence,
+          cite: s.puzzle.cite || null, origin: s.puzzle.origin, seconds, hints: s.hints,
+        });
       }
+      break;
+    }
+    case 'check': {
+      // 严格模式的"验一次": 只告诉对了几种符号, 不指位置
+      const s = ws._solo;
+      if (!s || s.puzzle.id !== String(msg.pid || '')) return;
+      const all = s.puzzle.uniqueCipher;
+      const right = all.filter(c => s.guesses[c] === s.puzzle.solution[c]).length;
+      s.checks = (s.checks || 0) + 1;
+      send(ws, { t: 'check_result', pid: s.puzzle.id, total: all.length, right, checks: s.checks });
       break;
     }
     case 'hint': {
@@ -405,16 +447,48 @@ function handle(ws, msg) {
       send(ws, Object.assign({ hint: { c, p: s.puzzle.solution[c] } }, view));
       if (view.solved) {
         const seconds = Math.round((Date.now() - s.startedAt) / 1000);
-        addHistory({ kind: 'cipher', players: [ws._user ? accounts().users[ws._user].name : '访客'], sentence: s.puzzle.sentence, length: s.puzzle.length, vocab: s.puzzle.vocab, mode: s.mode, hints: s.hints, seconds });
-        send(ws, { t: 'solved', pid: s.puzzle.id, sentence: s.puzzle.sentence, seconds, hints: s.hints });
+        addHistory({
+          kind: 'cipher', players: [ws._user ? accounts().users[ws._user].name : '访客'],
+          sentence: s.puzzle.sentence, cite: s.puzzle.cite || null,
+          length: s.puzzle.length, vocab: s.puzzle.vocab, mode: s.mode, hints: s.hints, seconds,
+        });
+        send(ws, {
+          t: 'solved', pid: s.puzzle.id, sentence: s.puzzle.sentence,
+          cite: s.puzzle.cite || null, origin: s.puzzle.origin, seconds, hints: s.hints,
+        });
       }
       break;
     }
     // ---------------- 协作房间 ----------------
     case 'room_create': {
       const name = ws._user ? accounts().users[ws._user].name : String(msg.name || '玩家').slice(0, 12);
-      const room = newRoom(msg.length, msg.vocab, msg.mode);
+      const room = newRoom(msg.length, msg.vocab, msg.mode, msg.strict, msg.source === 'quote' ? 'quote' : 'scene');
       joinRoom(room, ws, name, ws._user);
+      break;
+    }
+    case 'custom_create': {
+      // 好友出题: 玩家自己写一句英文, 系统加密成一封密信, 只发房间号给对方解
+      const norm = P.normalizeCustom(msg.sentence);
+      if (!norm.ok) return send(ws, { t: 'error', msg: norm.msg });
+      const name = ws._user ? accounts().users[ws._user].name : String(msg.name || '玩家').slice(0, 12);
+      const code = newCode();
+      const room = {
+        code, custom: true, author: ws._user || null, authorName: name,
+        length: 'custom', vocab: 'custom',
+        mode: msg.mode === 'letter' ? 'letter' : 'symbol',
+        strict: !!msg.strict,
+        puzzle: P.makePuzzle({ sentence: norm.text }),
+        guesses: {}, hints: 0, solved: false,
+        players: [], startedAt: Date.now(), timer: null,
+      };
+      rooms.set(code, room);
+      // 出题者不入房, 24 小时内没人来解就回收
+      room.timer = setTimeout(() => { if (!room.players.length) rooms.delete(code); }, 24 * 60 * 60 * 1000);
+      send(ws, {
+        t: 'custom_ok', code, letters: room.puzzle.letters,
+        unique: room.puzzle.uniqueCipher.length, mode: room.mode, strict: room.strict,
+        authorName: name,
+      });
       break;
     }
     case 'room_join': {
@@ -466,10 +540,12 @@ function handle(ws, msg) {
     case 'room_new': {
       const room = rooms.get(String(msg.code || ''));
       if (!room || !room.players.some(p => p.ws === ws)) return;
+      if (room.custom) return send(ws, { t: 'error', msg: '这是好友出的题, 换不了; 想自己开一局请回大厅' });
       if (P.LENGTHS[msg.length]) room.length = msg.length;
       if (P.VOCABS[msg.vocab]) room.vocab = msg.vocab;
       room.mode = msg.mode === 'letter' ? 'letter' : room.mode;
-      room.puzzle = P.makePuzzle({ length: room.length, vocab: room.vocab });
+      if (typeof msg.strict === 'boolean') room.strict = msg.strict;
+      room.puzzle = P.makePuzzle({ length: room.length, vocab: room.vocab, source: msg.source === 'quote' ? 'quote' : 'scene' });
       room.guesses = {}; room.hints = 0; room.solved = false; room.startedAt = Date.now();
       broadcast(room, Object.assign(roomView(room), { renewed: true }));
       break;
@@ -494,7 +570,11 @@ function handle(ws, msg) {
       if (!room) return;
       const to = String(msg.to || '');
       const fromName = accounts().users[ws._user].name;
-      const payload = { t: 'invite', from: ws._user, fromName, code: room.code, length: room.length, vocab: room.vocab };
+      const payload = {
+        t: 'invite', from: ws._user, fromName, code: room.code,
+        length: room.length, vocab: room.vocab,
+        custom: !!room.custom, authorName: room.authorName || null,
+      };
       const set = onlineUsers.get(to);
       if (set && set.size) {
         for (const w of set) send(w, payload);

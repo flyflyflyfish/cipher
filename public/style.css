@@ -679,3 +679,248 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 }
 .record-item .time { color: #a3906f; font-size: 12px; margin-left: auto; }
 .record-empty { font-size: 13px; color: #9a886b; text-align: center; padding: 12px; }
+
+/* ================= v3 新增: 出题 / 严格模式 / 新手教学 ================= */
+
+/* 选中「我来出题」时, 篇幅与词汇不再适用 */
+.opt-group.dim { opacity: .35; pointer-events: none; }
+
+/* ---- 出题面板 ---- */
+.custom-box {
+  margin: 2px 0 16px;
+  padding: 14px;
+  border: 1px dashed var(--line);
+  border-radius: 12px;
+  background: rgba(255, 252, 244, .72);
+  text-align: left;
+}
+.custom-hint {
+  font-size: 12.5px;
+  line-height: 1.65;
+  color: var(--ink-soft);
+  margin-bottom: 10px;
+}
+.custom-hint b { color: var(--accent); }
+#customText {
+  width: 100%;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.6;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #fffdf7;
+  color: var(--ink);
+  resize: vertical;
+}
+#customText:focus {
+  outline: 2px solid rgba(168, 58, 44, .2);
+  border-color: var(--accent);
+}
+.custom-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+.custom-count { font-size: 12px; color: #a3906f; }
+
+/* 虚线按钮: 教学入口 */
+.wide-btn.ghost {
+  background: transparent;
+  border-style: dashed;
+  color: var(--ink-soft);
+  font-weight: 600;
+}
+
+/* 严格模式标签 */
+.tag.strict { background: #fbeae6; border-color: #e2b5aa; color: var(--accent); }
+
+/* ---- 新手教学引导条 ---- */
+.tut-bar {
+  position: relative;
+  margin-bottom: 14px;
+  padding: 14px 16px 14px 18px;
+  border: 1px solid var(--line);
+  border-left: 4px solid var(--accent);
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fffaf0 0%, #fdf2dc 100%);
+  box-shadow: var(--shadow);
+}
+.tut-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.tut-step {
+  font-size: 11px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  font-weight: 700;
+}
+.tut-exit {
+  font: inherit;
+  font-size: 12px;
+  border: none;
+  background: transparent;
+  color: #a3906f;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.tut-text {
+  font-size: 13.5px;
+  line-height: 1.85;
+  color: var(--ink);
+}
+.tut-text b { color: var(--accent); }
+.tut-btns { display: flex; justify-content: flex-end; margin-top: 10px; }
+.tut-btns button {
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 700;
+  padding: 8px 18px;
+  border-radius: 999px;
+  border: 1px solid var(--accent);
+  background: var(--accent);
+  color: #fff8ee;
+  cursor: pointer;
+}
+
+/* 教学高亮 */
+.sym.tut-hi {
+  border-radius: 6px;
+  background: rgba(168, 58, 44, .1);
+  animation: tutPulse 1.7s ease-in-out infinite;
+}
+.word.tut-hi-word {
+  border-radius: 7px;
+  background: rgba(168, 58, 44, .08);
+  box-shadow: 0 0 0 1.5px rgba(168, 58, 44, .35);
+}
+.code-item.tut-hi {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 2px rgba(168, 58, 44, .25);
+}
+@keyframes tutPulse {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(168, 58, 44, .3); }
+  50% { box-shadow: 0 0 0 4px rgba(168, 58, 44, .12); }
+}
+
+/* ---- 胜利弹窗: 出处 ---- */
+.win-cite {
+  font-size: 12px;
+  font-style: italic;
+  color: #a3906f;
+  margin: 8px 0 0;
+  line-height: 1.6;
+}
+
+/* ---- 分享密信 ---- */
+.share-code {
+  font-size: 12px;
+  letter-spacing: 2px;
+  color: var(--ink-soft);
+  margin: 4px 0 0;
+}
+.share-code b {
+  display: block;
+  margin-top: 6px;
+  font-size: clamp(30px, 9vw, 40px);
+  letter-spacing: 8px;
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+  text-indent: 8px;
+}
+.share-tip {
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: #a3906f;
+  margin-top: 12px;
+}
+
+/* 修正: 弹窗里的主按钮被通用 button 规则盖掉 (再来一封 / 复制邀请链接) */
+.win-btns button.primary,
+.modal-card button.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff8ee;
+  font-weight: 700;
+}
+.win-btns button.primary:hover,
+.modal-card button.primary:hover { filter: brightness(1.07); }
+
+/* ---- 案情简报 ---- */
+.case-card {
+  position: relative;
+  margin-bottom: 12px;
+  padding: 12px 14px 13px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background:
+    repeating-linear-gradient(180deg, rgba(214,195,154,.14) 0 1px, transparent 1px 26px),
+    linear-gradient(180deg, #fffdf6 0%, #faf1dd 100%);
+  box-shadow: 0 4px 14px rgba(96, 71, 38, .07);
+}
+.case-card::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 10px; bottom: 10px;
+  width: 3px;
+  border-radius: 3px;
+  background: var(--accent);
+  opacity: .8;
+}
+.case-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+  padding-left: 6px;
+}
+.case-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--accent);
+}
+.case-toggle {
+  font: inherit;
+  font-size: 11.5px;
+  padding: 2px 6px;
+  border: none;
+  background: transparent;
+  color: #a3906f;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.case-brief {
+  padding-left: 6px;
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--ink-soft);
+}
+.case-card.collapsed .case-brief { display: none; }
+
+/* ---- 结案报告 ---- */
+.win-truth {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px dashed var(--line);
+  font-size: 13px;
+  line-height: 1.85;
+  color: var(--ink-soft);
+  text-align: left;
+}
+.win-truth::before {
+  content: "结案报告 · ";
+  font-size: 10px;
+  letter-spacing: 2px;
+  color: var(--accent);
+  font-weight: 700;
+  vertical-align: 1px;
+}
